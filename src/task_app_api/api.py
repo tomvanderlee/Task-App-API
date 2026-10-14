@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, g, jsonify, request
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
@@ -5,7 +7,7 @@ from sqlmodel import select
 
 from task_app_api import auth
 from task_app_api.db import get_session
-from task_app_api.models import Task, TaskInput, User
+from task_app_api.models import Task, TaskInput, TaskStatus, User
 
 app = Flask(__name__)
 app.before_request(auth.authenticate)
@@ -26,9 +28,53 @@ def get_or_create_user(session, username: str) -> User:
     return user
 
 
+PAGE_SIZE = int(os.environ.get("PAGE_SIZE", "20"))
+SORT_FIELDS = {"title": Task.title, "created_date": Task.created_date}
+
+
 @app.get("/tasks/")
 def list_tasks():
-    raise NotImplementedError()
+    page = request.args.get("page", "1")
+    if not page.isdecimal() or int(page) < 1:
+        return jsonify(detail="page must be an integer of at least 1"), 400
+
+    page = int(page)
+
+    sort = request.args.get("sort", "created_date")
+    if sort not in SORT_FIELDS:
+        return jsonify(detail=f"sort must be one of: {', '.join(SORT_FIELDS)}"), 400
+
+    try:
+        status = TaskStatus(s) if (s := request.args.get("status")) else None
+    except ValueError:
+        statuses = ", ".join(TaskStatus)
+        return jsonify(detail=f"status must be one of: {statuses}"), 400
+
+    with get_session() as session:
+        user = get_or_create_user(session, g.username)
+
+        query = select(Task).where(Task.owner_id == user.id)
+        if q := request.args.get("q"):
+            query = query.where(
+                Task.title.icontains(q, autoescape=True)
+            )  # Ideally this would be a fuzzy search, but left out for time sake
+        if status:
+            query = query.where(Task.status == status)
+
+        query = (
+            query.order_by(SORT_FIELDS[sort], Task.id)
+            .offset((page - 1) * PAGE_SIZE)
+            .limit(
+                PAGE_SIZE + 1
+            )  # Fetch one extra row so we can check if there is a next page
+        )
+        tasks = session.exec(query).all()
+
+        return jsonify(
+            next=page + 1 if len(tasks) > PAGE_SIZE else None,
+            prev=page - 1 if page > 1 else None,
+            items=[task.model_dump(mode="json") for task in tasks[:PAGE_SIZE]],
+        )
 
 
 @app.post("/tasks/")

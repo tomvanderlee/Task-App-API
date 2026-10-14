@@ -18,7 +18,7 @@ paths:
   /tasks/:
     get:
       summary: List tasks
-      description: List tasks and optionally filter them
+      description: List the tasks of the authenticated user and optionally filter them. Results are paginated with a server-configured page size.
       parameters:
         - name: q
           in: query
@@ -41,7 +41,17 @@ paths:
           required: false
           schema:
             $ref: '#/components/schemas/TaskStatus'
+        - name: page
+          in: query
+          description: Page number, starting at 1
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
       responses:
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "200":

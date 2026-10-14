@@ -3,7 +3,7 @@ GET {{host}}/tasks/
 Authorization: Bearer {{token}}
 
 ### List tasks filtered and sorted
-GET {{host}}/tasks/?q=assesment&status=todo&sort=created_date
+GET {{host}}/tasks/?q=assesment&status=todo&sort=created_date&page=1
 Authorization: Bearer {{token}}
 
 ### Create a task
