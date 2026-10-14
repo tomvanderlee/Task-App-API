@@ -15,3 +15,6 @@ db.sqlite
 
 # Private HTTP client environment
 http-client.private.env.json
+
+# Local JWT keys
+.jwt/

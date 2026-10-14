@@ -24,7 +24,7 @@ class Task(TaskInput, table=True):
 
 class User(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    username: str
+    username: str = Field(min_length=1, unique=True, index=True)
 
 
 class PaginatedResponse(SQLModel):

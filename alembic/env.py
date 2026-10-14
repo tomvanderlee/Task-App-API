@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
 from alembic import context
+from task_app_api import models as _  # noqa: F401  # autodiscover models
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

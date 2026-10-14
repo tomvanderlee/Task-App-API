@@ -124,10 +124,9 @@ paths:
 components:
   securitySchemes:
     UserAuth:
-      type: apiKey
-      in: header
-      name: Authorization
-      description: 'Send the username as `Authorization: User <username>`'
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
 
   parameters:
     TaskId:
@@ -183,6 +182,9 @@ components:
 
     User:
       type: object
+      required:
+        - id
+        - username
       properties:
         id:
           type: string
@@ -225,7 +227,7 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
     Unauthorized:
-      description: Missing or malformed Authorization header
+      description: Missing or invalid token
       content:
         application/json:
           schema:
