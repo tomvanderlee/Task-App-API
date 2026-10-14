@@ -11,6 +11,9 @@ servers:
   - url: http://localhost:8000
     description: localhost
 
+security:
+  - UserAuth: []
+
 paths:
   /tasks/:
     get:
@@ -39,6 +42,8 @@ paths:
           schema:
             $ref: '#/components/schemas/TaskStatus'
       responses:
+        "401":
+          $ref: '#/components/responses/Unauthorized'
         "200":
           description: List of tasks
           content:
@@ -63,6 +68,8 @@ paths:
             schema:
               $ref: '#/components/schemas/TaskInput'
       responses:
+        "401":
+          $ref: '#/components/responses/Unauthorized'
         "201":
           description: Task created
           content:
@@ -80,6 +87,8 @@ paths:
       summary: Get a task
       description: Retrieve a single task by its id
       responses:
+        "401":
+          $ref: '#/components/responses/Unauthorized'
         "200":
           description: The requested task
           content:
@@ -99,6 +108,8 @@ paths:
             schema:
               $ref: '#/components/schemas/TaskInput'
       responses:
+        "401":
+          $ref: '#/components/responses/Unauthorized'
         "200":
           description: Task updated
           content:
@@ -111,6 +122,13 @@ paths:
           $ref: '#/components/responses/NotFound'
 
 components:
+  securitySchemes:
+    UserAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: 'Send the username as `Authorization: User <username>`'
+
   parameters:
     TaskId:
       name: task_id
@@ -202,6 +220,12 @@ components:
             $ref: '#/components/schemas/Error'
     NotFound:
       description: Task not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or malformed Authorization header
       content:
         application/json:
           schema:

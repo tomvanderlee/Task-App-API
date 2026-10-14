@@ -1,6 +1,9 @@
 from flask import Flask
 
+from task_app_api import auth
+
 app = Flask(__name__)
+app.before_request(auth.authenticate)
 
 
 @app.get("/tasks/")
