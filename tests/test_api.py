@@ -353,3 +353,60 @@ class TestUpdateTask:
         response = self.put(client, created["id"])
 
         assert response.status_code == 401
+
+
+class TestDeleteTask:
+    def test_deletes_task(self, client, auth_headers):
+        created = create(client, auth_headers, "Buy milk")
+
+        response = client.delete(f"/tasks/{created['id']}/", headers=auth_headers)
+
+        assert response.status_code == 204
+        assert response.data == b""
+        with Session(engine) as session:
+            assert session.get(Task, UUID(created["id"])) is None
+
+    def test_deleted_task_is_gone(self, client, auth_headers):
+        created = create(client, auth_headers, "Buy milk")
+        client.delete(f"/tasks/{created['id']}/", headers=auth_headers)
+
+        get = client.get(f"/tasks/{created['id']}/", headers=auth_headers)
+        again = client.delete(f"/tasks/{created['id']}/", headers=auth_headers)
+
+        assert get.status_code == 404
+        assert again.status_code == 404
+
+    def test_only_deletes_the_given_task(self, client, auth_headers):
+        keep = create(client, auth_headers, "Keep")
+        remove = create(client, auth_headers, "Remove")
+
+        client.delete(f"/tasks/{remove['id']}/", headers=auth_headers)
+
+        assert titles(client.get("/tasks/", headers=auth_headers)) == ["Keep"]
+        assert keep["id"] != remove["id"]
+
+    def test_unknown_id_returns_404(self, client, auth_headers):
+        response = client.delete(f"/tasks/{uuid4()}/", headers=auth_headers)
+
+        assert response.status_code == 404
+        assert response.json == {"detail": "Task not found"}
+
+    def test_other_users_task_returns_404_and_is_kept(self, client):
+        ann = headers_for("ann")
+        created = create(client, ann, "Ann's task")
+
+        response = client.delete(f"/tasks/{created['id']}/", headers=headers_for("tom"))
+
+        assert response.status_code == 404
+        assert client.get(f"/tasks/{created['id']}/", headers=ann).json == created
+
+    def test_unauthenticated_returns_401(self, client, auth_headers):
+        created = create(client, auth_headers, "Buy milk")
+
+        response = client.delete(f"/tasks/{created['id']}/")
+
+        assert response.status_code == 401
+        assert (
+            client.get(f"/tasks/{created['id']}/", headers=auth_headers).status_code
+            == 200
+        )

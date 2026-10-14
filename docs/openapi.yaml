@@ -131,6 +131,17 @@ paths:
         "404":
           $ref: '#/components/responses/NotFound'
 
+    delete:
+      summary: Delete a task
+      description: Permanently delete a task
+      responses:
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "204":
+          description: Task deleted
+        "404":
+          $ref: '#/components/responses/NotFound'
+
 components:
   securitySchemes:
     UserAuth:

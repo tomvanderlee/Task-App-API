@@ -127,3 +127,15 @@ def update_task(task_id):
         session.commit()
         session.refresh(task)
         return jsonify(task.model_dump(mode="json"))
+
+
+@app.delete("/tasks/<uuid:task_id>/")
+def delete_task(task_id):
+    with get_session() as session:
+        task = get_owned_task(session, task_id, g.username)
+        if task is None:
+            return jsonify(detail="Task not found"), 404
+
+        session.delete(task)
+        session.commit()
+        return "", 204
