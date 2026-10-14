@@ -94,9 +94,20 @@ def create_task():
         return jsonify(task.model_dump(mode="json")), 201
 
 
+def get_owned_task(session, task_id, username: str) -> Task | None:
+    """Tasks of other users are treated as if they do not exist"""
+    user = get_or_create_user(session, username)
+    task = session.get(Task, task_id)
+    return task if task and task.owner_id == user.id else None
+
+
 @app.get("/tasks/<uuid:task_id>/")
 def get_task(task_id):
-    raise NotImplementedError()
+    with get_session() as session:
+        task = get_owned_task(session, task_id, g.username)
+        if task is None:
+            return jsonify(detail="Task not found"), 404
+        return jsonify(task.model_dump(mode="json"))
 
 
 @app.put("/tasks/<uuid:task_id>/")

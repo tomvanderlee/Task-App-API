@@ -1,4 +1,4 @@
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from conftest import _make_key, make_token
@@ -235,5 +235,40 @@ class TestListTasks:
 
     def test_unauthenticated_returns_401(self, client):
         response = client.get("/tasks/")
+
+        assert response.status_code == 401
+
+
+class TestGetTask:
+    def test_returns_task(self, client, auth_headers):
+        created = create(client, auth_headers, "Buy milk")
+
+        response = client.get(f"/tasks/{created['id']}/", headers=auth_headers)
+
+        assert response.status_code == 200
+        assert response.json == created
+
+    def test_unknown_id_returns_404(self, client, auth_headers):
+        response = client.get(f"/tasks/{uuid4()}/", headers=auth_headers)
+
+        assert response.status_code == 404
+        assert response.json == {"detail": "Task not found"}
+
+    def test_other_users_task_returns_404(self, client):
+        created = create(client, headers_for("ann"), "Ann's task")
+
+        response = client.get(f"/tasks/{created['id']}/", headers=headers_for("tom"))
+
+        assert response.status_code == 404
+
+    def test_invalid_id_returns_404(self, client, auth_headers):
+        response = client.get("/tasks/not-a-uuid/", headers=auth_headers)
+
+        assert response.status_code == 404
+
+    def test_unauthenticated_returns_401(self, client, auth_headers):
+        created = create(client, auth_headers, "Buy milk")
+
+        response = client.get(f"/tasks/{created['id']}/")
 
         assert response.status_code == 401
