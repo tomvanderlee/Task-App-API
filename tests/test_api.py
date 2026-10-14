@@ -9,6 +9,7 @@ from task_app_api.db import engine
 from task_app_api.models import Task, User
 
 VALID = {"title": "Buy milk", "status": "todo"}
+UPDATE = {"title": "Buy oat milk", "status": "done"}
 
 
 def post(client, body=VALID, headers=None):
@@ -270,5 +271,85 @@ class TestGetTask:
         created = create(client, auth_headers, "Buy milk")
 
         response = client.get(f"/tasks/{created['id']}/")
+
+        assert response.status_code == 401
+
+
+class TestUpdateTask:
+    def put(self, client, task_id, body=UPDATE, headers=None):
+        return client.put(f"/tasks/{task_id}/", json=body, headers=headers)
+
+    def test_updates_task(self, client, auth_headers):
+        created = create(client, auth_headers, "Buy milk")
+
+        response = self.put(client, created["id"], headers=auth_headers)
+
+        assert response.status_code == 200
+        assert response.json["title"] == "Buy oat milk"
+        assert response.json["status"] == "done"
+
+    def test_persists_update(self, client, auth_headers):
+        created = create(client, auth_headers, "Buy milk")
+        self.put(client, created["id"], headers=auth_headers)
+
+        response = client.get(f"/tasks/{created['id']}/", headers=auth_headers)
+
+        assert response.json["title"] == "Buy oat milk"
+        assert response.json["status"] == "done"
+
+    def test_keeps_server_controlled_fields(self, client, auth_headers):
+        created = create(client, auth_headers, "Buy milk")
+        body = {
+            **UPDATE,
+            "id": str(uuid4()),
+            "owner_id": str(uuid4()),
+            "created_date": "2000-01-01T00:00:00Z",
+        }
+
+        response = self.put(client, created["id"], body, auth_headers)
+
+        assert response.status_code == 200
+        for field in ("id", "owner_id", "created_date"):
+            assert response.json[field] == created[field]
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {},
+            {"title": "No status"},
+            {"status": "todo"},
+            {"title": "Bad status", "status": "finished"},
+            {"title": 123, "status": "todo"},
+        ],
+    )
+    def test_invalid_body_returns_400(self, client, auth_headers, body):
+        created = create(client, auth_headers, "Buy milk")
+
+        response = self.put(client, created["id"], body, auth_headers)
+
+        assert response.status_code == 400
+        assert "detail" in response.json
+        unchanged = client.get(f"/tasks/{created['id']}/", headers=auth_headers)
+        assert unchanged.json == created
+
+    def test_unknown_id_returns_404(self, client, auth_headers):
+        response = self.put(client, uuid4(), headers=auth_headers)
+
+        assert response.status_code == 404
+        assert response.json == {"detail": "Task not found"}
+
+    def test_other_users_task_returns_404_and_is_unchanged(self, client):
+        ann = headers_for("ann")
+        created = create(client, ann, "Ann's task")
+
+        response = self.put(client, created["id"], headers=headers_for("tom"))
+
+        assert response.status_code == 404
+        assert client.get(f"/tasks/{created['id']}/", headers=ann).json == created
+
+    def test_unauthenticated_returns_401(self, client, auth_headers):
+        created = create(client, auth_headers, "Buy milk")
+
+        response = self.put(client, created["id"])
 
         assert response.status_code == 401

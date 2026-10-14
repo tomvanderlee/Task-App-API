@@ -112,4 +112,18 @@ def get_task(task_id):
 
 @app.put("/tasks/<uuid:task_id>/")
 def update_task(task_id):
-    raise NotImplementedError()
+    try:
+        data = TaskInput.model_validate(request.get_json(silent=True) or {})
+    except ValidationError as e:
+        return jsonify(detail=str(e)), 400
+
+    with get_session() as session:
+        task = get_owned_task(session, task_id, g.username)
+        if task is None:
+            return jsonify(detail="Task not found"), 404
+
+        task.sqlmodel_update(data)
+        session.add(task)
+        session.commit()
+        session.refresh(task)
+        return jsonify(task.model_dump(mode="json"))
