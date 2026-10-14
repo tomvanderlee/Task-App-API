@@ -8,7 +8,7 @@ from conftest import KID, _make_key, make_token
 from flask import g
 
 from task_app_api.api import app
-from task_app_api.auth import authenticate, get_jwks
+from task_app_api.auth import authenticate, get_jwks, require_auth
 
 MALFORMED = "Expected 'Authorization: Bearer <token>'"
 INVALID = "Invalid token"
@@ -168,6 +168,38 @@ class TestAuthenticate:
         assert status == 401
         assert response.json == {"detail": INVALID}
         assert username is None
+
+
+class TestRequireAuth:
+    def test_calls_view_with_arguments_and_returns_its_response(self):
+        @require_auth
+        def view(a, b=None):
+            return {"a": a, "b": b}
+
+        with app.test_request_context(headers=bearer(make_token("tom"))):
+            assert view(1, b=2) == {"a": 1, "b": 2}
+
+    def test_sets_username_before_calling_view(self):
+        @require_auth
+        def view():
+            return g.username
+
+        with app.test_request_context(headers=bearer(make_token("tom"))):
+            assert view() == "tom"
+
+    def test_view_is_not_called_without_valid_token(self):
+        calls = []
+
+        @require_auth
+        def view():
+            calls.append(1)
+
+        with app.test_request_context(headers=bearer("garbage")):
+            response, status = view()
+
+        assert status == 401
+        assert response.json == {"detail": INVALID}
+        assert calls == []
 
 
 class TestWiring:

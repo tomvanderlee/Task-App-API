@@ -5,12 +5,11 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
-from task_app_api import auth
+from task_app_api.auth import require_auth
 from task_app_api.db import get_session
 from task_app_api.models import Task, TaskInput, TaskStatus, User
 
 app = Flask(__name__)
-app.before_request(auth.authenticate)
 
 
 def get_or_create_user(session, username: str) -> User:
@@ -33,6 +32,7 @@ SORT_FIELDS = {"title": Task.title, "created_date": Task.created_date}
 
 
 @app.get("/tasks/")
+@require_auth
 def list_tasks():
     page = request.args.get("page", "1")
     if not page.isdecimal() or int(page) < 1:
@@ -78,6 +78,7 @@ def list_tasks():
 
 
 @app.post("/tasks/")
+@require_auth
 def create_task():
     try:
         data = TaskInput.model_validate(request.get_json(silent=True) or {})
@@ -102,6 +103,7 @@ def get_owned_task(session, task_id, username: str) -> Task | None:
 
 
 @app.get("/tasks/<uuid:task_id>/")
+@require_auth
 def get_task(task_id):
     with get_session() as session:
         task = get_owned_task(session, task_id, g.username)
@@ -111,6 +113,7 @@ def get_task(task_id):
 
 
 @app.put("/tasks/<uuid:task_id>/")
+@require_auth
 def update_task(task_id):
     try:
         data = TaskInput.model_validate(request.get_json(silent=True) or {})
@@ -130,6 +133,7 @@ def update_task(task_id):
 
 
 @app.delete("/tasks/<uuid:task_id>/")
+@require_auth
 def delete_task(task_id):
     with get_session() as session:
         task = get_owned_task(session, task_id, g.username)

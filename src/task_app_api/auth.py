@@ -1,5 +1,6 @@
 import json
 import os
+from functools import wraps
 
 import jwt
 from flask import g, jsonify, request
@@ -37,3 +38,13 @@ def authenticate():
         return jsonify(detail="Invalid token"), 401
 
     g.username = username
+
+
+def require_auth(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if (error := authenticate()) is not None:
+            return error
+        return view(*args, **kwargs)
+
+    return wrapper
