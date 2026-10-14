@@ -1,7 +1,7 @@
 [project]
 name = "task-app-api"
 version = "0.1.0"
-description = "Add your description here"
+description = "Task API"
 readme = "README.md"
 authors = [
     { name = "Tom van der Lee" }
@@ -14,9 +14,6 @@ dependencies = [
     "python-dotenv>=1.2.4",
     "sqlmodel>=0.0.48",
 ]
-
-[project.scripts]
-task-app-api = "task_app_api:main"
 
 [build-system]
 requires = ["uv_build>=0.12.22,<0.13.0"]
