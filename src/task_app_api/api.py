@@ -7,9 +7,19 @@ from sqlmodel import select
 
 from task_app_api.auth import require_auth
 from task_app_api.db import get_session
+from task_app_api.errors import register_error_handlers
+from task_app_api.exceptions import BadRequestError, NotFoundError
 from task_app_api.models import Task, TaskInput, TaskStatus, User
 
 app = Flask(__name__)
+register_error_handlers(app)
+
+
+def parse_body() -> TaskInput:
+    try:
+        return TaskInput.model_validate(request.get_json(silent=True) or {})
+    except ValidationError as e:
+        raise BadRequestError(str(e)) from e
 
 
 def get_or_create_user(session, username: str) -> User:
@@ -36,19 +46,19 @@ SORT_FIELDS = {"title": Task.title, "created_date": Task.created_date}
 def list_tasks():
     page = request.args.get("page", "1")
     if not page.isdecimal() or int(page) < 1:
-        return jsonify(detail="page must be an integer of at least 1"), 400
+        raise BadRequestError("page must be an integer of at least 1")
 
     page = int(page)
 
     sort = request.args.get("sort", "created_date")
     if sort not in SORT_FIELDS:
-        return jsonify(detail=f"sort must be one of: {', '.join(SORT_FIELDS)}"), 400
+        raise BadRequestError(f"sort must be one of: {', '.join(SORT_FIELDS)}")
 
     try:
         status = TaskStatus(s) if (s := request.args.get("status")) else None
-    except ValueError:
+    except ValueError as e:
         statuses = ", ".join(TaskStatus)
-        return jsonify(detail=f"status must be one of: {statuses}"), 400
+        raise BadRequestError(f"status must be one of: {statuses}") from e
 
     with get_session() as session:
         user = get_or_create_user(session, g.username)
@@ -80,10 +90,7 @@ def list_tasks():
 @app.post("/tasks/")
 @require_auth
 def create_task():
-    try:
-        data = TaskInput.model_validate(request.get_json(silent=True) or {})
-    except ValidationError as e:
-        return jsonify(detail=str(e)), 400
+    data = parse_body()
 
     with get_session() as session:
         user = get_or_create_user(session, g.username)
@@ -95,11 +102,13 @@ def create_task():
         return jsonify(task.model_dump(mode="json")), 201
 
 
-def get_owned_task(session, task_id, username: str) -> Task | None:
+def get_owned_task(session, task_id, username: str) -> Task:
     """Tasks of other users are treated as if they do not exist"""
     user = get_or_create_user(session, username)
     task = session.get(Task, task_id)
-    return task if task and task.owner_id == user.id else None
+    if task is None or task.owner_id != user.id:
+        raise NotFoundError("Task not found")
+    return task
 
 
 @app.get("/tasks/<uuid:task_id>/")
@@ -107,23 +116,16 @@ def get_owned_task(session, task_id, username: str) -> Task | None:
 def get_task(task_id):
     with get_session() as session:
         task = get_owned_task(session, task_id, g.username)
-        if task is None:
-            return jsonify(detail="Task not found"), 404
         return jsonify(task.model_dump(mode="json"))
 
 
 @app.put("/tasks/<uuid:task_id>/")
 @require_auth
 def update_task(task_id):
-    try:
-        data = TaskInput.model_validate(request.get_json(silent=True) or {})
-    except ValidationError as e:
-        return jsonify(detail=str(e)), 400
+    data = parse_body()
 
     with get_session() as session:
         task = get_owned_task(session, task_id, g.username)
-        if task is None:
-            return jsonify(detail="Task not found"), 404
 
         task.sqlmodel_update(data)
         session.add(task)
@@ -137,8 +139,6 @@ def update_task(task_id):
 def delete_task(task_id):
     with get_session() as session:
         task = get_owned_task(session, task_id, g.username)
-        if task is None:
-            return jsonify(detail="Task not found"), 404
 
         session.delete(task)
         session.commit()

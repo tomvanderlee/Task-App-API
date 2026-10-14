@@ -9,6 +9,7 @@ from flask import g
 
 from task_app_api.api import app
 from task_app_api.auth import authenticate, get_jwks, require_auth
+from task_app_api.exceptions import UnauthorizedError
 
 MALFORMED = "Expected 'Authorization: Bearer <token>'"
 INVALID = "Invalid token"
@@ -19,10 +20,18 @@ def bearer(token):
 
 
 def run(headers):
-    """Call authenticate() directly, returns (result, g.username)"""
+    """Call authenticate() directly, returns g.username"""
     with app.test_request_context(headers=headers):
-        result = authenticate()
-        return result, g.get("username")
+        authenticate()
+        return g.get("username")
+
+
+def run_rejected(headers):
+    """Call authenticate() expecting a rejection, returns (error, g.username)"""
+    with app.test_request_context(headers=headers):
+        with pytest.raises(UnauthorizedError) as exc_info:
+            authenticate()
+        return exc_info.value, g.get("username")
 
 
 def jwk(key, kid):
@@ -53,21 +62,18 @@ class TestGetJwks:
 
 class TestAuthenticate:
     def test_valid_token_sets_username(self):
-        result, username = run(bearer(make_token("tom")))
+        username = run(bearer(make_token("tom")))
 
-        assert result is None
         assert username == "tom"
 
     def test_surrounding_whitespace_is_ignored(self):
-        result, username = run({"Authorization": f"Bearer  {make_token('tom')} "})
+        username = run({"Authorization": f"Bearer  {make_token('tom')} "})
 
-        assert result is None
         assert username == "tom"
 
     def test_extra_claims_are_ignored(self):
-        result, username = run(bearer(make_token("tom", admin=True)))
+        username = run(bearer(make_token("tom", admin=True)))
 
-        assert result is None
         assert username == "tom"
 
     def test_selects_key_by_kid(self, tmp_path, monkeypatch):
@@ -78,9 +84,8 @@ class TestAuthenticate:
         )
         monkeypatch.setenv("JWKS_FILE", str(path))
 
-        result, username = run(bearer(make_token("ann", key=other, kid="rotated")))
+        username = run(bearer(make_token("ann", key=other, kid="rotated")))
 
-        assert result is None
         assert username == "ann"
 
     @pytest.mark.parametrize(
@@ -109,11 +114,9 @@ class TestAuthenticate:
         ],
     )
     def test_malformed_header_is_rejected(self, headers):
-        result, username = run(headers)
+        error, username = run_rejected(headers)
 
-        response, status = result
-        assert status == 401
-        assert response.json == {"detail": MALFORMED}
+        assert error.detail == MALFORMED
         assert username is None
 
     @pytest.mark.parametrize(
@@ -162,11 +165,9 @@ class TestAuthenticate:
         ],
     )
     def test_invalid_token_is_rejected(self, token):
-        result, username = run(bearer(token))
+        error, username = run_rejected(bearer(token))
 
-        response, status = result
-        assert status == 401
-        assert response.json == {"detail": INVALID}
+        assert error.detail == INVALID
         assert username is None
 
 
@@ -194,11 +195,12 @@ class TestRequireAuth:
         def view():
             calls.append(1)
 
-        with app.test_request_context(headers=bearer("garbage")):
-            response, status = view()
+        with (
+            app.test_request_context(headers=bearer("garbage")),
+            pytest.raises(UnauthorizedError),
+        ):
+            view()
 
-        assert status == 401
-        assert response.json == {"detail": INVALID}
         assert calls == []
 
 

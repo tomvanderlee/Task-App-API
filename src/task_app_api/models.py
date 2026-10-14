@@ -31,7 +31,3 @@ class PaginatedResponse(SQLModel):
     next: int | None = None
     prev: int | None = None
     items: list[dict]
-
-
-class Error(SQLModel):
-    detail: str

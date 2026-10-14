@@ -3,8 +3,10 @@ import os
 from functools import wraps
 
 import jwt
-from flask import g, jsonify, request
+from flask import g, request
 from jwt import PyJWKSet
+
+from task_app_api.exceptions import UnauthorizedError
 
 ALGORITHMS = ["RS256"]
 
@@ -16,10 +18,14 @@ def get_jwks() -> dict:
         return json.load(f)
 
 
-def authenticate():
+def authenticate() -> None:
+    """Verify the bearer token and store the username on `g`.
+
+    Raises UnauthorizedError when the token is missing or invalid.
+    """
     scheme, _, token = request.headers.get("Authorization", "").partition(" ")
     if scheme != "Bearer" or not token.strip():
-        return jsonify(detail="Expected 'Authorization: Bearer <token>'"), 401
+        raise UnauthorizedError("Expected 'Authorization: Bearer <token>'")
 
     try:
         header = jwt.get_unverified_header(token.strip())
@@ -30,12 +36,12 @@ def authenticate():
             algorithms=ALGORITHMS,
             options={"require": ["exp", "username"]},
         )
-    except (jwt.PyJWTError, KeyError):
-        return jsonify(detail="Invalid token"), 401
+    except (jwt.PyJWTError, KeyError) as e:
+        raise UnauthorizedError from e
 
     username = claims["username"]
     if not isinstance(username, str) or not username.strip():
-        return jsonify(detail="Invalid token"), 401
+        raise UnauthorizedError
 
     g.username = username
 
@@ -43,8 +49,7 @@ def authenticate():
 def require_auth(view):
     @wraps(view)
     def wrapper(*args, **kwargs):
-        if (error := authenticate()) is not None:
-            return error
+        authenticate()
         return view(*args, **kwargs)
 
     return wrapper
