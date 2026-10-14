@@ -18,3 +18,7 @@ http-client.private.env.json
 
 # Local JWT keys
 .jwt/
+
+# Test coverage
+.coverage
+htmlcov/
