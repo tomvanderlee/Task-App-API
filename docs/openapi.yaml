@@ -1,0 +1,208 @@
+openapi: 3.0.3
+
+info:
+  title: Task App API
+  description: A task API written in Python
+  contact:
+    email: tom@codebeez.nl
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+    description: localhost
+
+paths:
+  /tasks/:
+    get:
+      summary: List tasks
+      description: List tasks and optionally filter them
+      parameters:
+        - name: q
+          in: query
+          description: Filter tasks by a search term
+          required: false
+          schema:
+            type: string
+        - name: sort
+          in: query
+          description: Sort tasks by any of the specified fields
+          required: false
+          schema:
+            type: string
+            enum:
+              - title
+              - created_date
+        - name: status
+          in: query
+          description: Filter tasks by status
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskStatus'
+      responses:
+        "200":
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Task'
+
+    post:
+      summary: Create a task
+      description: Create a new task. The id, owner and created date are set by the server.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskInput'
+      responses:
+        "201":
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+
+  /tasks/{task_id}/:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+
+    get:
+      summary: Get a task
+      description: Retrieve a single task by its id
+      responses:
+        "200":
+          description: The requested task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update a task
+      description: Replace a task. All writable fields must be provided.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskInput'
+      responses:
+        "200":
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    TaskId:
+      name: task_id
+      in: path
+      description: Unique identifier of the task
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    TaskStatus:
+      type: string
+      enum:
+        - todo
+        - in_progress
+        - done
+
+    TaskInput:
+      type: object
+      description: Writable fields of a task
+      required:
+        - title
+        - status
+      properties:
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+
+    Task:
+      type: object
+      required:
+        - id
+        - owner_id
+        - title
+        - created_date
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+        title:
+          type: string
+        created_date:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+
+    PaginatedResponse:
+      type: object
+      description: Paginated response object
+      properties:
+        next:
+          type: integer
+          nullable: true
+        prev:
+          type: integer
+          nullable: true
+        items:
+          type: array
+          items:
+            type: object
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Task not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
