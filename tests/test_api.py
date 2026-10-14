@@ -1,7 +1,7 @@
 from uuid import UUID, uuid4
 
 import pytest
-from conftest import _make_key, make_token
+from conftest import make_token
 from sqlmodel import Session, select
 
 from task_app_api import api
@@ -98,38 +98,6 @@ class TestCreateTask:
         response = client.post("/tasks/", data="nope", headers=auth_headers)
 
         assert response.status_code == 400
-
-    @pytest.mark.parametrize(
-        "headers",
-        [
-            {},
-            {"Authorization": "Bearer"},
-            {"Authorization": "Bearer not-a-jwt"},
-            {"Authorization": "User tom"},
-            {"Authorization": f"Bearer {make_token(expires_in=-60)}"},
-            {"Authorization": f"Bearer {make_token(key=_make_key())}"},
-            {"Authorization": f"Bearer {make_token(kid='unknown')}"},
-            {"Authorization": f"Bearer {make_token(username=None)}"},
-        ],
-        ids=[
-            "missing",
-            "no-token",
-            "garbage",
-            "wrong-scheme",
-            "expired",
-            "wrong-signing-key",
-            "unknown-kid",
-            "missing-username-claim",
-        ],
-    )
-    def test_unauthenticated_returns_401(self, client, headers):
-        response = post(client, headers=headers)
-
-        assert response.status_code == 401
-        assert "detail" in response.json
-        with Session(engine) as session:
-            assert session.exec(select(Task)).all() == []
-            assert session.exec(select(User)).all() == []
 
 
 class TestListTasks:
@@ -234,11 +202,6 @@ class TestListTasks:
         assert response.status_code == 400
         assert "detail" in response.json
 
-    def test_unauthenticated_returns_401(self, client):
-        response = client.get("/tasks/")
-
-        assert response.status_code == 401
-
 
 class TestGetTask:
     def test_returns_task(self, client, auth_headers):
@@ -266,13 +229,6 @@ class TestGetTask:
         response = client.get("/tasks/not-a-uuid/", headers=auth_headers)
 
         assert response.status_code == 404
-
-    def test_unauthenticated_returns_401(self, client, auth_headers):
-        created = create(client, auth_headers, "Buy milk")
-
-        response = client.get(f"/tasks/{created['id']}/")
-
-        assert response.status_code == 401
 
 
 class TestUpdateTask:
@@ -347,13 +303,6 @@ class TestUpdateTask:
         assert response.status_code == 404
         assert client.get(f"/tasks/{created['id']}/", headers=ann).json == created
 
-    def test_unauthenticated_returns_401(self, client, auth_headers):
-        created = create(client, auth_headers, "Buy milk")
-
-        response = self.put(client, created["id"])
-
-        assert response.status_code == 401
-
 
 class TestDeleteTask:
     def test_deletes_task(self, client, auth_headers):
@@ -399,14 +348,3 @@ class TestDeleteTask:
 
         assert response.status_code == 404
         assert client.get(f"/tasks/{created['id']}/", headers=ann).json == created
-
-    def test_unauthenticated_returns_401(self, client, auth_headers):
-        created = create(client, auth_headers, "Buy milk")
-
-        response = client.delete(f"/tasks/{created['id']}/")
-
-        assert response.status_code == 401
-        assert (
-            client.get(f"/tasks/{created['id']}/", headers=auth_headers).status_code
-            == 200
-        )

@@ -32,4 +32,8 @@ def authenticate():
     except (jwt.PyJWTError, KeyError):
         return jsonify(detail="Invalid token"), 401
 
-    g.username = claims["username"]
+    username = claims["username"]
+    if not isinstance(username, str) or not username.strip():
+        return jsonify(detail="Invalid token"), 401
+
+    g.username = username
