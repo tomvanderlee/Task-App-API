@@ -12,3 +12,6 @@ wheels/
 # Environment and local database
 .env
 db.sqlite
+
+# Private HTTP client environment
+http-client.private.env.json

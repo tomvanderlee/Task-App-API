@@ -1,0 +1,34 @@
+### List tasks
+GET {{host}}/tasks/
+Authorization: User {{user}}
+
+### List tasks filtered and sorted
+GET {{host}}/tasks/?q=assesment&status=todo&sort=created_date
+Authorization: User {{user}}
+
+### Create a task
+POST {{host}}/tasks/
+Authorization: User {{user}}
+Content-Type: application/json
+
+{
+  "title": "Do assesment",
+  "status": "todo"
+}
+
+### Get a task
+GET {{host}}/tasks/{{task_id}}/
+Authorization: User {{user}}
+
+### Update a task
+PUT {{host}}/tasks/{{task_id}}/
+Authorization: User {{user}}
+Content-Type: application/json
+
+{
+  "title": "Do assesment",
+  "status": "done"
+}
+
+### Missing Authorization header (expect 401)
+GET {{host}}/tasks/
